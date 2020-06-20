@@ -1,0 +1,2 @@
+# Automatic_Solar_panel_cleaning_system
+The cleaning system has been designed, cleans the module by moving a robotic cleaning system. The system consists of a Robot with water spraying system and dusting system. To clean the solar panel efficiently first Robot cleans the dry dust using dusting/wiping system, later it starts the spraying system along with wiping system to clean hard dust. To make dust not to accumulate last, the system needs to operate at a regular interval. This makes dust not to accumulate long time and get hardened.
