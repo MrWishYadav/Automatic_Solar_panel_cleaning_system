@@ -1,0 +1,264 @@
+#include<p18f4520.h>
+#include <LiquidCrystal.h>
+#include <RTClib.h>
+
+#define Green_LED 14
+
+unsigned long previousMillis = 0;
+const long interval = 20000;
+unsigned int Battery_Voltage=0;
+unsigned int Solar_Voltage=0;
+unsigned char state=0;
+unsigned char last_state=0;
+unsigned char button_last_state=1;
+unsigned char button_state=1;
+unsigned char count=0;
+unsigned char switch_pressed=0;
+unsigned char current_min=0;
+unsigned char Solar_state=0;
+unsigned char Battery_Voltage_decivolts, Battery_Voltage_volts,Solar_Voltage_volts,Solar_Voltage_decivolts;
+int Battery_Voltage_f=0;
+int Solar_Voltage_f=0;
+unsigned char system_op=0;
+
+#define DEBUG           false
+RTC_DS1307 rtc;
+LiquidCrystal lcd(3,10,9,11,12,13);
+void setup() 
+{
+  pinMode(2,OUTPUT);
+  pinMode(15,INPUT_PULLUP);
+  pinMode(17,INPUT_PULLUP);
+  digitalWrite(2,HIGH);
+  pinMode(6,OUTPUT);
+  pinMode(7,OUTPUT);
+  pinMode(8,INPUT_PULLUP);
+  digitalWrite(4,LOW);
+  digitalWrite(5,LOW);
+  delay(2000); 
+  lcd.begin(16, 2);
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("LCD");
+  lcd.setCursor(0, 1);
+  lcd.print("Initialised");
+  delay(2000); 
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("System");
+  lcd.setCursor(0, 1);
+  lcd.print("Initialising");
+  delay(2000);
+  pinMode(Green_LED,OUTPUT);
+  rtc.begin();               // rtc begin
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("CLOCK");
+  lcd.setCursor(0, 1);
+  lcd.print("Initialiasing"); 
+  delay(1000);
+  Read_Time();
+  delay(1000);
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("CLOCK");
+  lcd.setCursor(0, 1);
+  lcd.print("Initialiased"); 
+  Serial.begin(115200);  
+  delay(1000);
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("WiFi");
+  lcd.setCursor(0, 1);
+  lcd.print("Initialiased");  
+  Start_Server();
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Server");
+  lcd.setCursor(0, 1);
+  lcd.print("Started....");  
+  delay(1000);
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Solar");
+  lcd.setCursor(0, 1);
+  lcd.print("Panel Cleaner");  
+  delay(1000);
+}
+
+void loop() 
+{
+int Battery_Value;
+int Solar_Value = analogRead(A2);
+Solar_Voltage_volts=0;
+Battery_Voltage_volts=0;
+Battery_Voltage_f = Battery_Value * (5.0*11.0 / 1023.0);
+for(Battery_Voltage_decivolts=(Battery_Value*10*(5.0*11.0 / 1023.0)); Battery_Voltage_decivolts>=10; Battery_Voltage_decivolts-=10)
+{
+  Battery_Voltage_volts++;
+}
+Battery_Voltage_volts=5;
+Battery_Voltage_decivolts=1;
+Battery_Voltage_f=5.1;
+Solar_Voltage_f = Solar_Value * (5.0*110.0 / 1023.0);
+for(Solar_Voltage_decivolts=Solar_Voltage_f; Solar_Voltage_decivolts>=10; Solar_Voltage_decivolts-=10)
+{
+  Solar_Voltage_volts++;
+}
+unsigned long currentMillis = millis(); 
+if ((unsigned long)(currentMillis - previousMillis) >= 5000 && system_op==0) 
+  {
+    previousMillis = millis();
+    Send_Data();
+  }
+  button_last_state=button_state;
+  button_state=digitalRead(8);
+  if((button_last_state!=button_state) && button_state==LOW)
+  {
+     switch_pressed=1;
+  }
+  last_state = state;
+  state = digitalRead(17);
+  if(last_state != state)
+  count++;
+  if(switch_pressed==1 || current_min==1 || current_min==15 || current_min==30 || current_min==45)
+  {
+    Solar_state=1;
+    system_op=1;
+  }
+  if(Solar_state==1)
+  {
+  if(count<12)
+  {
+  if(digitalRead(17)==LOW)
+  {
+    digitalWrite(4,LOW);
+    digitalWrite(5,LOW);
+    delay(300);
+    digitalWrite(4,LOW);
+    digitalWrite(5,HIGH);
+    delay(300);
+  if(count<6)
+  {
+    delay(100);
+    digitalWrite(2,LOW);
+  }
+  else
+  {
+    delay(100);
+    digitalWrite(2,HIGH);    
+  }
+  }
+  else if(digitalRead(15)==LOW)
+  {
+    digitalWrite(4,LOW);
+    digitalWrite(5,LOW);
+    delay(300);
+    digitalWrite(5,LOW);
+    digitalWrite(4,HIGH);   
+    delay(300);
+  }
+  }
+  else
+  {
+  Solar_state=0;
+  system_op=0;
+  switch_pressed=0;
+  count=0;
+  digitalWrite(2,HIGH);
+  digitalWrite(4,LOW);
+  digitalWrite(5,LOW);    
+  digitalWrite(6,LOW);
+  digitalWrite(7,LOW);
+  }
+  }
+  Read_Time();
+  delay(300); 
+}
+
+char current_time[6];
+unsigned int current_year;
+int connectionId=0;
+
+void Read_Time()
+{
+    DateTime now = rtc.now();
+    current_time[2] = (now.hour());
+    current_time[1] = (now.minute());
+    current_time[0] = (now.second());  
+    current_min = current_time[1]; 
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Cur Time ");
+    lcd.print(current_time[0],DEC); 
+    lcd.print(":"); 
+    lcd.print(current_time[1],DEC); 
+    lcd.print(":"); 
+    lcd.print(current_time[2],DEC);  
+    lcd.setCursor(0, 1);
+    lcd.print(Battery_Voltage_volts,DEC);
+    lcd.print('.'); 
+    lcd.print(Battery_Voltage_decivolts,DEC); 
+    lcd.print('V');
+    lcd.setCursor(8, 1);
+    lcd.print(Solar_Voltage_volts);
+    lcd.print('.'); 
+    lcd.print(Solar_Voltage_decivolts); 
+    lcd.print('V');
+}
+
+//gets the data from esp//        
+void sendData(String command, const int timeout, boolean debug)
+  {
+  String response = "";
+  Serial.print(command);
+  long int time = millis();
+  while( (time+timeout) > millis())
+     {
+     while(Serial.available())
+         {
+         char c = Serial.read(); // read the next character.
+         response+=c;
+         }  
+     }        
+  }
+
+//sends data from ESP to webpage//
+ 
+void espsend(String d)
+   {
+   String cipSend = F(" AT+CIPSEND=");
+   cipSend += connectionId; 
+   cipSend += ",";
+   cipSend +=d.length();
+   cipSend +="\r\n";
+   sendData(cipSend,1000,DEBUG);
+   sendData(d,1000,DEBUG); 
+   }
+
+void Start_Server()
+{
+  sendData(F("AT+RST\n"),2000,DEBUG); // reset module
+  sendData(F("AT+CWMODE=2\n"),1000,DEBUG); // configure as access point
+  sendData(F("AT+CIPAP=\"192.168.45.100\",\"192.168.45.1\",\"255.255.255.0\"\n"),1000,DEBUG);
+  sendData(F("AT+CIFSR\r\n"),1000,DEBUG); // get ip address
+  sendData(F("AT+CWSAP=\"Solar_Panel\",\"\",1,0,4,0\n"),1000,DEBUG); // get ip address
+  sendData(F("AT+CIPMUX=1\n"),1000,DEBUG); // configure for multiple connections
+  sendData(F("AT+CIPSERVER=1,5555\n"),1000,DEBUG); // turn on server on port 80
+}
+
+void Send_Data()
+{
+ 
+   String data;   
+      data =String(Battery_Voltage_volts);
+      data +=(';');
+      data +=String(Battery_Voltage_decivolts);
+      data +=(';');
+      data += String(Solar_Voltage_volts);
+      data +=(';');
+      data += String(Solar_Voltage_decivolts);
+      data +=(';');
+    espsend(data);
+}
+
